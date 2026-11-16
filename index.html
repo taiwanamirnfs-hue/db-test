@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>تست پایگاه داده</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1f6feb">
+<link rel="icon" href="icon-192.png">
 <style>
   :root { --bg:#f6f7f9; --card:#fff; --text:#1c2430; --muted:#6b7686; --main:#1f6feb; --line:#dde2e9; --err:#c62828; --ok:#2e7d32; }
   @media (prefers-color-scheme: dark) {
@@ -67,7 +70,6 @@ import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, si
 import { getFirestore, doc, getDoc, setDoc, addDoc, collection, query, where, getDocs, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// ====== اینجا تنظیمات Firebase خودت رو بذار (در راهنما توضیح دادم) ======
 const firebaseConfig = {
   apiKey: "AIzaSyBoUQzFuZDyDufqss3UnDOY9FRaz8S3Rik",
   authDomain: "kkkkug-d0295.firebaseapp.com",
@@ -76,15 +78,9 @@ const firebaseConfig = {
   messagingSenderId: "356926947468",
   appId: "1:356926947468:web:31bed4f45f88014869bba9"
 };
-// ========================================================================
 
 const $ = id => document.getElementById(id);
 const status = (t, ok) => { $("status").textContent = t; $("status").className = ok ? "ok" : "err"; };
-
-if (firebaseConfig.apiKey === "PASTE_HERE") {
-  status("هنوز تنظیمات Firebase رو داخل فایل نذاشتی.");
-  throw new Error("Firebase config missing");
-}
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -148,7 +144,7 @@ async function loadMessages() {
       who.className = "who";
       who.textContent = m.name;
       const body = document.createElement("div");
-      body.textContent = m.text;   // textContent یعنی کد مخرب اجرا نمیشه
+      body.textContent = m.text;
       div.append(who, body);
       $("list").append(div);
     }
@@ -171,6 +167,12 @@ onAuthStateChanged(auth, async user => {
   } catch (e) { status(errText(e)); }
   loadMessages();
 });
+</script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./service-worker.js');
+  }
 </script>
 </body>
 </html>
