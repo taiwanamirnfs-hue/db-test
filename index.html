@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>تست پایگاه داده</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --text:#1c2430; --muted:#6b7686; --main:#1f6feb; --line:#dde2e9; --err:#c62828; --ok:#2e7d32; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12161c; --card:#1b212a; --text:#e8ecf1; --muted:#98a3b3; --main:#5b9bff; --line:#2c3541; --err:#ef7a7a; --ok:#6fcf7a; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:Tahoma, "Segoe UI", sans-serif; background:var(--bg); color:var(--text); line-height:1.8; }
+  main { max-width:520px; margin:0 auto; padding:20px 16px 40px; }
+  h1 { font-size:1.3rem; margin:8px 0 16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
+  input, textarea { width:100%; padding:10px; margin:6px 0; font:inherit; color:var(--text); background:var(--bg); border:1px solid var(--line); border-radius:8px; }
+  button { font:inherit; padding:10px 16px; border:0; border-radius:8px; background:var(--main); color:#fff; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--main); border:1px solid var(--line); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  .msg { border-top:1px solid var(--line); padding:10px 0; }
+  .msg:first-child { border-top:0; }
+  .who { font-size:.85rem; color:var(--muted); }
+  #status { min-height:1.6em; font-size:.9rem; }
+  .err { color:var(--err); } .ok { color:var(--ok); }
+  .hidden { display:none; }
+  :focus-visible { outline:2px solid var(--main); outline-offset:2px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>تست ثبت‌نام و پایگاه داده</h1>
+  <div id="status" role="status"></div>
+
+  <!-- صفحه ورود -->
+  <section id="authBox" class="card hidden">
+    <input id="name" placeholder="نام (فقط هنگام ثبت‌نام)">
+    <input id="email" type="email" placeholder="ایمیل" dir="ltr">
+    <input id="pass" type="password" placeholder="رمز (حداقل ۶ کاراکتر)" dir="ltr">
+    <div class="row">
+      <button id="loginBtn">ورود</button>
+      <button id="signupBtn" class="ghost">ثبت‌نام</button>
+    </div>
+  </section>
+
+  <!-- صفحه اصلی بعد از ورود -->
+  <section id="appBox" class="hidden">
+    <div class="card">
+      <div id="hello"></div>
+      <button id="logoutBtn" class="ghost">خروج</button>
+    </div>
+    <div class="card">
+      <textarea id="text" rows="3" placeholder="یک پیام بنویس..."></textarea>
+      <button id="sendBtn">ذخیره پیام</button>
+    </div>
+    <div class="card">
+      <strong id="listTitle">پیام‌های من</strong>
+      <div id="list"></div>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, addDoc, collection, query, where, getDocs, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// ====== اینجا تنظیمات Firebase خودت رو بذار (در راهنما توضیح دادم) ======
+const firebaseConfig = {
+  apiKey: "AIzaSyBoUQzFuZDyDufqss3UnDOY9FRaz8S3Rik",
+  authDomain: "kkkkug-d0295.firebaseapp.com",
+  projectId: "kkkkug-d0295",
+  storageBucket: "kkkkug-d0295.firebasestorage.app",
+  messagingSenderId: "356926947468",
+  appId: "1:356926947468:web:31bed4f45f88014869bba9"
+};
+// ========================================================================
+
+const $ = id => document.getElementById(id);
+const status = (t, ok) => { $("status").textContent = t; $("status").className = ok ? "ok" : "err"; };
+
+if (firebaseConfig.apiKey === "PASTE_HERE") {
+  status("هنوز تنظیمات Firebase رو داخل فایل نذاشتی.");
+  throw new Error("Firebase config missing");
+}
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+let isAdmin = false;
+
+const errText = e => ({
+  "auth/invalid-email": "ایمیل درست نیست.",
+  "auth/weak-password": "رمز باید حداقل ۶ کاراکتر باشه.",
+  "auth/email-already-in-use": "این ایمیل قبلاً ثبت‌نام کرده.",
+  "auth/invalid-credential": "ایمیل یا رمز اشتباهه.",
+  "auth/network-request-failed": "اینترنت یا دسترسی به سرور مشکل داره."
+}[e.code] || ("خطا: " + (e.code || e.message)));
+
+$("signupBtn").onclick = async () => {
+  try {
+    const name = $("name").value.trim() || "بدون نام";
+    const cred = await createUserWithEmailAndPassword(auth, $("email").value.trim(), $("pass").value);
+    await setDoc(doc(db, "users", cred.user.uid), { name, role: "student" });
+    status("ثبت‌نام شد.", true);
+  } catch (e) { status(errText(e)); }
+};
+
+$("loginBtn").onclick = async () => {
+  try { await signInWithEmailAndPassword(auth, $("email").value.trim(), $("pass").value); status(""); }
+  catch (e) { status(errText(e)); }
+};
+
+$("logoutBtn").onclick = () => signOut(auth);
+
+$("sendBtn").onclick = async () => {
+  const text = $("text").value.trim();
+  if (!text) return status("اول یه چیزی بنویس.");
+  try {
+    const u = await getDoc(doc(db, "users", auth.currentUser.uid));
+    await addDoc(collection(db, "messages"), {
+      uid: auth.currentUser.uid,
+      name: u.exists() ? u.data().name : "؟",
+      text,
+      createdAt: serverTimestamp()
+    });
+    $("text").value = "";
+    status("ذخیره شد.", true);
+    loadMessages();
+  } catch (e) { status(errText(e)); }
+};
+
+async function loadMessages() {
+  try {
+    const col = collection(db, "messages");
+    const q = isAdmin ? query(col) : query(col, where("uid", "==", auth.currentUser.uid));
+    const snap = await getDocs(q);
+    const items = snap.docs.map(d => d.data())
+      .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    $("list").innerHTML = "";
+    if (!items.length) { $("list").textContent = "هنوز پیامی نیست."; return; }
+    for (const m of items) {
+      const div = document.createElement("div");
+      div.className = "msg";
+      const who = document.createElement("div");
+      who.className = "who";
+      who.textContent = m.name;
+      const body = document.createElement("div");
+      body.textContent = m.text;   // textContent یعنی کد مخرب اجرا نمیشه
+      div.append(who, body);
+      $("list").append(div);
+    }
+  } catch (e) { status(errText(e)); }
+}
+
+onAuthStateChanged(auth, async user => {
+  if (!user) {
+    $("authBox").classList.remove("hidden");
+    $("appBox").classList.add("hidden");
+    return;
+  }
+  $("authBox").classList.add("hidden");
+  $("appBox").classList.remove("hidden");
+  try {
+    const u = await getDoc(doc(db, "users", user.uid));
+    isAdmin = u.exists() && u.data().role === "admin";
+    $("hello").textContent = "سلام " + (u.exists() ? u.data().name : "") + (isAdmin ? " (مدیر)" : "");
+    $("listTitle").textContent = isAdmin ? "پیام‌های همه" : "پیام‌های من";
+  } catch (e) { status(errText(e)); }
+  loadMessages();
+});
+</script>
+</body>
+</html>
